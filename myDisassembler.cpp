@@ -5,13 +5,8 @@
 #include <iomanip>
 #include <string> 
 
-// Enum to classify MIPS instruction types
-enum class InstructionType {
-    R_Type,
-    I_Type,
-    J_Type,
-    Unknown
-};
+enum InstructionType {R_Type,I_Type,J_Type, Other_Type};
+
 std::map<std::string, std::string> createRTypeMap() {
     std::map<std::string, std::string> R_type_map;
 
@@ -153,11 +148,10 @@ std::map<char, std::string> Hex_Map() {
 std::string hex_to_binary(const std::string& hex_string, const std::map<char, std::string>& Hex_Map) {
     std::string binary_string;
     for (char hex_char : hex_string) {
-        // Ensure that the character is a valid hexadecimal digit
+        //Uses the map to find the 
         if (Hex_Map.find(hex_char) != Hex_Map.end()) {
             binary_string = binary_string + Hex_Map.at(hex_char);
         } else {
-            // Handle invalid character (you can skip it or handle it as needed)
             std::cerr << "Invalid hexadecimal character: " << hex_char << std::endl;
         }
     }
@@ -165,12 +159,64 @@ std::string hex_to_binary(const std::string& hex_string, const std::map<char, st
 }
 
 
+InstructionType checkTheType(const std::string & binary_string)
+{
+   std::string opCode = binary_string.substr(0,6);
+   InstructionType type; 
+   std::map<std::string,std::string> IMap = createImmediateMap();
+   if(opCode == "000000")
+   {
+     type = R_Type;
+   }
+   else if(IMap.find(opCode) != IMap.end())
+   {
+     type = I_Type;
+   }
+   else if(opCode == "000010" || opCode == "000011")
+   {
+     type = J_Type;
+   }
+   else{
+    type = Other_Type;
+   }
+   return type;  // Add this line to fix the error.
+}
+
+
 int main() {
-    // Read the hexadecimal string from the .obj file
-    std::ifstream obj_file("test_case1.obj");
+    // Read the hexadecimal strings from the .obj file
+    std::ifstream obj_file("test_case2.obj");
     if (!obj_file.is_open()) {
         std::cerr << "Failed to open .obj file." << std::endl;
         return 1;
+    }
+
+    std::string hex_input;
+    while (obj_file >> hex_input) {
+        // Convert the hex_input to binary using hex_to_binary function
+        std::string binary_input = hex_to_binary(hex_input, Hex_Map());
+
+        // Determine the instruction type using checkTheType function
+        InstructionType type = checkTheType(binary_input);
+
+        // Print the results for each line
+        std::cout << "Hexadecimal Input: " << hex_input << std::endl;
+        std::cout << "Binary Output: " << binary_input << std::endl;
+
+        switch (type) {
+            case R_Type:
+                std::cout << "Instruction Type: R-Type" << std::endl;
+                break;
+            case I_Type:
+                std::cout << "Instruction Type: I-Type" << std::endl;
+                break;
+            case J_Type:
+                std::cout << "Instruction Type: J-Type" << std::endl;
+                break;
+            case Other_Type:
+                std::cout << "Instruction Type: Other" << std::endl;
+                break;
+        }
     }
 
     obj_file.close();
