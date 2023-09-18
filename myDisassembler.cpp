@@ -12,7 +12,6 @@ enum class InstructionType {
     J_Type,
     Unknown
 };
-
 std::map<std::string, std::string> createRTypeMap() {
     std::map<std::string, std::string> R_type_map;
 
@@ -129,7 +128,7 @@ std::map<std::string, std::string> Register_Map() {
     return Register_Map;
 }
 
-// Define a function to create and initialize the Hex_Map
+// Define and initialize the Hex_Map
 std::map<char, std::string> Hex_Map() {
     std::map<char, std::string> Hex_Map;
     Hex_Map['0'] = "0000";
@@ -148,12 +147,33 @@ std::map<char, std::string> Hex_Map() {
     Hex_Map['d'] = "1101";
     Hex_Map['e'] = "1110";
     Hex_Map['f'] = "1111";
-
     return Hex_Map;
 }
 
+std::string hex_to_binary(const std::string& hex_string, const std::map<char, std::string>& Hex_Map) {
+    std::string binary_string;
+    for (char hex_char : hex_string) {
+        // Ensure that the character is a valid hexadecimal digit
+        if (Hex_Map.find(hex_char) != Hex_Map.end()) {
+            binary_string = binary_string + Hex_Map.at(hex_char);
+        } else {
+            // Handle invalid character (you can skip it or handle it as needed)
+            std::cerr << "Invalid hexadecimal character: " << hex_char << std::endl;
+        }
+    }
+    return binary_string;
+}
+
+
 int main() {
+    // Read the hexadecimal string from the .obj file
+    std::ifstream obj_file("test_case1.obj");
+    if (!obj_file.is_open()) {
+        std::cerr << "Failed to open .obj file." << std::endl;
+        return 1;
+    }
 
+    obj_file.close();
 
-
+    return 0;
 }
