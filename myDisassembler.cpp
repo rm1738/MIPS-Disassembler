@@ -182,6 +182,37 @@ InstructionType checkTheType(const std::string & binary_string)
    return type;  // Add this line to fix the error.
 }
 
+void evaluateRType(const std::string& binary_input)
+{
+    
+
+}
+
+
+void processInstructionLine(const std::string& hex_input) {
+    // Convert the hex_input to binary using hex_to_binary function
+    std::string binary_input = hex_to_binary(hex_input, Hex_Map());
+    // Determine the instruction type using checkTheType function
+    InstructionType type = checkTheType(binary_input);
+    // Print the results for each line
+    std::cout << "Hexadecimal Input: " << hex_input << std::endl;
+    std::cout << "Binary Output: " << binary_input << std::endl;
+
+    switch (type) {
+        case R_Type:
+            std::cout << "Instruction Type: R-Type" << std::endl;
+            break;
+        case I_Type:
+            std::cout << "Instruction Type: I-Type" << std::endl;
+            break;
+        case J_Type:
+            std::cout << "Instruction Type: J-Type" << std::endl;
+            break;
+        case Other_Type:
+            std::cout << "Instruction Type: Other" << std::endl;
+            break;
+    }
+}
 
 int main() {
     // Read the hexadecimal strings from the .obj file
@@ -190,36 +221,12 @@ int main() {
         std::cerr << "Failed to open .obj file." << std::endl;
         return 1;
     }
-
     std::string hex_input;
     while (obj_file >> hex_input) {
-        // Convert the hex_input to binary using hex_to_binary function
-        std::string binary_input = hex_to_binary(hex_input, Hex_Map());
-
-        // Determine the instruction type using checkTheType function
-        InstructionType type = checkTheType(binary_input);
-
-        // Print the results for each line
-        std::cout << "Hexadecimal Input: " << hex_input << std::endl;
-        std::cout << "Binary Output: " << binary_input << std::endl;
-
-        switch (type) {
-            case R_Type:
-                std::cout << "Instruction Type: R-Type" << std::endl;
-                break;
-            case I_Type:
-                std::cout << "Instruction Type: I-Type" << std::endl;
-                break;
-            case J_Type:
-                std::cout << "Instruction Type: J-Type" << std::endl;
-                break;
-            case Other_Type:
-                std::cout << "Instruction Type: Other" << std::endl;
-                break;
-        }
+        // Process each line using the function
+        processInstructionLine(hex_input);
     }
-
     obj_file.close();
-
     return 0;
 }
+
