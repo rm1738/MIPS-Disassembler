@@ -8,7 +8,7 @@
 #include <vector>
 #include <algorithm> 
 
-enum InstructionType {R_Type,I_Type,J_Type, Other_Type};
+enum InstructionType {R_Type,I_Type, Other_Type};
 
 std::map<std::string, std::string> createRTypeMap() {
     std::map<std::string, std::string> R_type_map;
@@ -170,10 +170,6 @@ InstructionType checkTheType(const std::string & binary_string)
    {
      type = I_Type;
    }
-   else if(opCode == "000010" || opCode == "000011")
-   {
-     type = J_Type;
-   }
    else{
     type = Other_Type;
    }
@@ -304,6 +300,7 @@ void generateLabels(const std::string& obj_file_name, std::ofstream& output_file
 
     int current_address = 0;
     int line_number = 0; // Add this variable to track the line number
+    bool disassembly_error = false; // Flag to track disassembly errors
 
     while (obj_file.good()) {
         std::string hex_input;
@@ -317,8 +314,8 @@ void generateLabels(const std::string& obj_file_name, std::ofstream& output_file
         // Check if the input line contains exactly 8 hexadecimal digits
         if (hex_input.size() != 8 || !is_hexadecimal(hex_input)) {
             std::cerr << "Cannot disassemble '" << hex_input << "' at line " << line_number << std::endl;
-            obj_file.close();  // Close the input file
-            return; // Exit the function due to the error
+            disassembly_error = true;
+            break; // Exit the loop due to the error
         }
 
         std::string binary_input = hex_to_binary(hex_input, Hex_Map());
@@ -346,59 +343,74 @@ void generateLabels(const std::string& obj_file_name, std::ofstream& output_file
     }
 
     obj_file.close();
-    obj_file.open(obj_file_name);
-    current_address = 0;
 
-    while (obj_file.good()) {
-        std::string hex_input;
-        obj_file >> hex_input;
-        line_number++; // Increment the line number
+    // Check if there was a disassembly error before generating the output
+    if (!disassembly_error) {
+        obj_file.open(obj_file_name);
+        current_address = 0;
 
-        if (hex_input.empty()) {
-            break; // End of file
+        while (obj_file.good()) {
+            std::string hex_input;
+            obj_file >> hex_input;
+            line_number++; // Increment the line number
+
+            if (hex_input.empty()) {
+                break; // End of file
+            }
+
+            std::string binary_input = hex_to_binary(hex_input, Hex_Map());
+            InstructionType type = checkTheType(binary_input);
+
+            // Output the label for the current address if it's a branch target
+            if (std::find(branch_targets.begin(), branch_targets.end(), current_address) != branch_targets.end()) {
+                output_file << "Addr_" << std::setfill('0') << std::setw(4) << int_to_hex_string(current_address).substr(2) << ":" << std::endl;
+            }
+
+            // Handle branch instructions and other instructions as before
+            switch (type) {
+                case R_Type:
+                    evaluateRType(binary_input, output_file);
+                    break;
+                case I_Type:
+                    evaluateIType(binary_input, output_file, current_address, branch_targets);
+                    break;
+                case Other_Type:
+                    std::cerr << "Cannot disassemble '" << hex_input << "' at line " << line_number << std::endl;
+                    disassembly_error = true;
+                    break; // Exit the loop due to the error
+            }
+
+            current_address += 4;
         }
-
-        std::string binary_input = hex_to_binary(hex_input, Hex_Map());
-        InstructionType type = checkTheType(binary_input);
-
-        // Output the label for the current address if it's a branch target
-        if (std::find(branch_targets.begin(), branch_targets.end(), current_address) != branch_targets.end()) {
-            output_file << "Addr_" << std::setfill('0') << std::setw(4) << int_to_hex_string(current_address).substr(2) << ":" << std::endl;
-        }
-
-        // Handle branch instructions and other instructions as before
-        switch (type) {
-            case R_Type:
-                evaluateRType(binary_input, output_file);
-                break;
-            case I_Type:
-                evaluateIType(binary_input, output_file, current_address, branch_targets);
-                break;
-            case J_Type:
-                // Handle J-type instructions here if needed
-                break;
-            case Other_Type:
-                std::cerr << "Cannot disassemble '" << hex_input << "' at line " << line_number << std::endl;
-                obj_file.close();  // Close the input file
-                return; // Exit the function due to the error
-        }
-        current_address += 4;
+        obj_file.close();
     }
-    obj_file.close();
+
+    // If there was a disassembly error, close the output file and remove it
+    if (disassembly_error) {
+        output_file.close();
+        std::remove("output.s");
+    }
 }
 
 
+int main(int argc, char* argv[]) {
+    if (argc != 2) {
+        std::cerr << "Usage: " << argv[0] << " <input_file.obj>" << std::endl;
+        return 1;
+    }
 
-int main() {
+    std::string input_file_name = argv[1];
     std::ofstream output_file("output.s");
+    
     if (!output_file.is_open()) {
         std::cerr << "Failed to open output file." << std::endl;
         return 1;
     }
 
-    generateLabels("test_case3.obj", output_file);
+    generateLabels(input_file_name, output_file);
 
     output_file.close();
 
     return 0;
 }
+
