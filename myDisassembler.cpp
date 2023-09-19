@@ -4,12 +4,14 @@
 #include <map>
 #include <iomanip>
 #include <string> 
+#include <bitset>
+#include <vector>
+#include <algorithm> 
 
 enum InstructionType {R_Type,I_Type,J_Type, Other_Type};
 
 std::map<std::string, std::string> createRTypeMap() {
     std::map<std::string, std::string> R_type_map;
-
     // Initialize the map with key-value pairs
     R_type_map["100000"] = "add";
     R_type_map["100001"] = "addu";
@@ -77,17 +79,14 @@ std::map<std::string, std::string> createImmediateMap() {
 // Define a function to create and initialize the JTypeMap
 std::map<std::string, std::string> createJTypeMap() {
     std::map<std::string, std::string> JTypeMap;
-
     // Initialize the map with key-value pairs
     JTypeMap["000010"] = "j";
     JTypeMap["000011"] = "jal";
-
     return JTypeMap;
 }
 
 std::map<std::string, std::string> Register_Map() {
     std::map<std::string, std::string> Register_Map;
-
     Register_Map["00000"] = "$zero";
     Register_Map["00001"] = "$at";
     Register_Map["00010"] = "$v0";
@@ -158,7 +157,6 @@ std::string hex_to_binary(const std::string& hex_string, const std::map<char, st
     return binary_string;
 }
 
-
 InstructionType checkTheType(const std::string & binary_string)
 {
    std::string opCode = binary_string.substr(0,6);
@@ -179,54 +177,228 @@ InstructionType checkTheType(const std::string & binary_string)
    else{
     type = Other_Type;
    }
-   return type;  // Add this line to fix the error.
+   return type;  
 }
 
-void evaluateRType(const std::string& binary_input)
-{
-    
-
+std::string int_to_hex_string(int value) {
+    std::stringstream stream;
+    stream << std::setfill('0') << std::setw(4) << std::hex << value;
+    return stream.str();
 }
 
+void evaluateRType(const std::string& binary_input, std::ofstream& output_file) {
+    std::string src_reg1 = binary_input.substr(6, 5);
+    std::string src_reg2 = binary_input.substr(11, 5);
+    std::string dest_reg = binary_input.substr(16, 5);
+    std::string shift_amount = binary_input.substr(21, 5);
+    std::string function_code = binary_input.substr(26, 6);
 
-void processInstructionLine(const std::string& hex_input) {
-    // Convert the hex_input to binary using hex_to_binary function
-    std::string binary_input = hex_to_binary(hex_input, Hex_Map());
-    // Determine the instruction type using checkTheType function
-    InstructionType type = checkTheType(binary_input);
-    // Print the results for each line
-    std::cout << "Hexadecimal Input: " << hex_input << std::endl;
-    std::cout << "Binary Output: " << binary_input << std::endl;
+    std::map<std::string, std::string> regMap = Register_Map();
+    std::map<std::string, std::string> instructionMap = createRTypeMap();
 
-    switch (type) {
-        case R_Type:
-            std::cout << "Instruction Type: R-Type" << std::endl;
-            break;
-        case I_Type:
-            std::cout << "Instruction Type: I-Type" << std::endl;
-            break;
-        case J_Type:
-            std::cout << "Instruction Type: J-Type" << std::endl;
-            break;
-        case Other_Type:
-            std::cout << "Instruction Type: Other" << std::endl;
-            break;
+    std::string op = instructionMap[function_code];
+    std::string src_reg1_op = regMap[src_reg1];
+    std::string src_reg2_op = regMap[src_reg2];
+    std::string dest_reg_op = regMap[dest_reg];
+
+    // Check if any of the registers are not found in the maps and print errors to the console
+    if (op.empty()) {
+        std::cerr << "Error: Invalid function code: " << function_code << std::endl;
+    }
+    if (src_reg1_op.empty()) {
+        std::cerr << "Error: No Register Found for: " << src_reg1 << std::endl;
+    }
+    if (src_reg2_op.empty()) {
+        std::cerr << "Error: No Register Found for: " << src_reg2 << std::endl;
+    }
+    if (dest_reg_op.empty()) {
+        std::cerr << "Error: No destination register Found: " << dest_reg << std::endl;
+    }
+
+    // Check for "sll" and "srl" based on their function codes (e.g., "000000" for "sll" and "srl")
+    if (function_code == "000000" || function_code == "000010") {
+        // Convert the binary shift amount to decimal
+        std::bitset<5> shift_bits(shift_amount);
+        int shift_decimal = static_cast<int>(shift_bits.to_ulong());
+
+        // Write the "sll" or "srl" instruction to the output file in the expected format
+        output_file << op << " " << dest_reg_op << ", " << src_reg2_op << ", " << shift_decimal << std::endl;
+    }
+    // If all registers are found and it's not "sll" or "srl," write the information to the output file
+    else if (!op.empty() && !src_reg1_op.empty() && !src_reg2_op.empty() && !dest_reg_op.empty()) {
+        output_file << op << " " << dest_reg_op << ", " << src_reg1_op << ", " << src_reg2_op << std::endl;
     }
 }
 
-int main() {
-    // Read the hexadecimal strings from the .obj file
-    std::ifstream obj_file("test_case2.obj");
+void evaluateIType(const std::string& binary_input, std::ofstream& output_file, int current_address, const std::vector<int>& branch_targets) {
+    std::string opcode = binary_input.substr(0, 6);
+    std::string src_reg1 = binary_input.substr(6, 5);
+    std::string src_reg2 = binary_input.substr(11, 5);
+    std::string immediate_value = binary_input.substr(16, 16);
+
+    // Map for instruction opcodes and registers
+    const std::map<std::string, std::string> instructionMap = createImmediateMap();
+    const std::map<std::string, std::string> regMap = Register_Map();
+
+    // Get the operation, source registers, and destination register
+    const std::string operation = instructionMap.at(opcode);
+    const std::string src_reg1_op = regMap.at(src_reg1);
+    const std::string src_reg2_op = regMap.at(src_reg2);
+
+    // Check if the operation and registers are found in the maps
+    if (operation.empty()) {
+        std::cerr << "Error: Invalid opcode: " << opcode << std::endl;
+        return;
+    }
+    if (src_reg1_op.empty()) {
+        std::cerr << "Error: Invalid source register: " << src_reg1 << std::endl;
+        return;
+    }
+    if (src_reg2_op.empty()) {
+        std::cerr << "Error: Invalid source register: " << src_reg2 << std::endl;
+        return;
+    }
+
+    // Convert the immediate value from binary to decimal
+    const int immediate_decimal = std::stoi(immediate_value, nullptr, 2);
+
+    // Calculate the target address (PC') using the equation
+    const int target_offset = immediate_decimal << 2; // Shift left by 2
+    const int target_address = current_address + 4 + target_offset;
+
+    // Special handling for "beq" and "bne" instructions
+    if (operation == "beq" || operation == "bne") {
+        // Check if the target address is in the list of branch targets
+        if (std::find(branch_targets.begin(), branch_targets.end(), target_address) != branch_targets.end()) {
+            // Output the label for the target address
+            output_file << operation << " " << src_reg1_op << ", " << src_reg2_op << ", Addr_" << std::setfill('0') << std::setw(4) << int_to_hex_string(target_address).substr(2) << std::endl;
+        } else {
+            // Output the target offset directly if not found in branch targets
+            output_file << operation << " " << src_reg1_op << ", " << src_reg2_op << ", " << target_offset << std::endl;
+        }
+    } else if (operation == "lw" || operation == "sw") {
+        output_file << operation << " " << src_reg2_op << ", " << immediate_decimal << "(" << src_reg1_op << ")" << std::endl;
+    } else {
+        output_file << operation << " " << src_reg2_op << ", " << src_reg1_op << ", " << immediate_decimal << std::endl;
+    }
+}
+
+bool is_hexadecimal(const std::string& str) {
+    for (char c : str) {
+        if (!std::isxdigit(static_cast<unsigned char>(c))) {
+            return false;
+        }
+    }
+    return true;
+}
+
+void generateLabels(const std::string& obj_file_name, std::ofstream& output_file) {
+    std::ifstream obj_file(obj_file_name);
     if (!obj_file.is_open()) {
         std::cerr << "Failed to open .obj file." << std::endl;
-        return 1;
+        return;
     }
-    std::string hex_input;
-    while (obj_file >> hex_input) {
-        // Process each line using the function
-        processInstructionLine(hex_input);
+
+    std::map<int, std::string> address_to_label; // Map addresses to labels
+    std::vector<int> branch_targets; // List of branch target addresses
+
+    int current_address = 0;
+    int line_number = 0; // Add this variable to track the line number
+
+    while (obj_file.good()) {
+        std::string hex_input;
+        obj_file >> hex_input;
+        line_number++; // Increment the line number
+
+        if (hex_input.empty()) {
+            break; // End of file
+        }
+
+        // Check if the input line contains exactly 8 hexadecimal digits
+        if (hex_input.size() != 8 || !is_hexadecimal(hex_input)) {
+            std::cerr << "Cannot disassemble '" << hex_input << "' at line " << line_number << std::endl;
+            obj_file.close();  // Close the input file
+            return; // Exit the function due to the error
+        }
+
+        std::string binary_input = hex_to_binary(hex_input, Hex_Map());
+        InstructionType type = checkTheType(binary_input);
+
+        if (type == I_Type && (binary_input.substr(0, 6) == "000100" || binary_input.substr(0, 6) == "000101")) {
+            // Handle branch instructions with labels
+            std::bitset<16> offset_bits(binary_input.substr(16, 16));
+            int offset_decimal = static_cast<int>(offset_bits.to_ulong());
+
+            // Calculate the target address (PC') using the equation
+            int target_address = current_address + 4 + (offset_decimal << 2);
+
+            // Record the branch target address
+            branch_targets.push_back(target_address);
+
+            // Output the label for the target address if it's not already present
+            if (!address_to_label.count(target_address)) {
+                output_file << "Addr_" << std::setfill('0') << std::setw(4) << int_to_hex_string(target_address).substr(2) << ":" << std::endl;
+                address_to_label[target_address] = "Addr_" + int_to_hex_string(target_address).substr(2);
+            }
+        }
+
+        current_address += 4;
+    }
+
+    obj_file.close();
+    obj_file.open(obj_file_name);
+    current_address = 0;
+
+    while (obj_file.good()) {
+        std::string hex_input;
+        obj_file >> hex_input;
+        line_number++; // Increment the line number
+
+        if (hex_input.empty()) {
+            break; // End of file
+        }
+
+        std::string binary_input = hex_to_binary(hex_input, Hex_Map());
+        InstructionType type = checkTheType(binary_input);
+
+        // Output the label for the current address if it's a branch target
+        if (std::find(branch_targets.begin(), branch_targets.end(), current_address) != branch_targets.end()) {
+            output_file << "Addr_" << std::setfill('0') << std::setw(4) << int_to_hex_string(current_address).substr(2) << ":" << std::endl;
+        }
+
+        // Handle branch instructions and other instructions as before
+        switch (type) {
+            case R_Type:
+                evaluateRType(binary_input, output_file);
+                break;
+            case I_Type:
+                evaluateIType(binary_input, output_file, current_address, branch_targets);
+                break;
+            case J_Type:
+                // Handle J-type instructions here if needed
+                break;
+            case Other_Type:
+                std::cerr << "Cannot disassemble '" << hex_input << "' at line " << line_number << std::endl;
+                obj_file.close();  // Close the input file
+                return; // Exit the function due to the error
+        }
+        current_address += 4;
     }
     obj_file.close();
-    return 0;
 }
 
+
+
+int main() {
+    std::ofstream output_file("output.s");
+    if (!output_file.is_open()) {
+        std::cerr << "Failed to open output file." << std::endl;
+        return 1;
+    }
+
+    generateLabels("test_case3.obj", output_file);
+
+    output_file.close();
+
+    return 0;
+}
